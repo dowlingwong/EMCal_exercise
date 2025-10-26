@@ -7,7 +7,7 @@ import random
 import numpy
 
 # The modules to test.
-import kmeans
+import ref.kmeans as kmeans
 
 def test_dataset():
     """Test the Dataset class."""

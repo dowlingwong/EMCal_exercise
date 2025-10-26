@@ -6,7 +6,7 @@
 import random
 
 import cornelltest  # Make sure you have NEW version
-import kmeans
+import ref.kmeans as kmeans
 
 
 # ----------------------------

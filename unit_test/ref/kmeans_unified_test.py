@@ -59,7 +59,7 @@ def expect_raises(exc_type, func, *args, **kwargs):
 def seed_rng():
     random.seed(123456)
 
-import kmeans  # The implementation under test
+import ref.kmeans as kmeans  # The implementation under test
 
 def test_dataset():
     # Empty dataset
