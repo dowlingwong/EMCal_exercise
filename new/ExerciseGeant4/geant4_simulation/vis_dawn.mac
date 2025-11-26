@@ -1,0 +1,30 @@
+/vis/open DAWNFILE
+/vis/drawVolume
+
+/vis/modeling/trajectories/create/drawByParticleID
+/vis/modeling/trajectories/drawByParticleID-0/set gamma green
+/vis/modeling/trajectories/drawByParticleID-0/set e- blue
+/vis/modeling/trajectories/drawByParticleID-0/set e+ magenta
+/vis/modeling/trajectories/drawByParticleID-0/set mu- blue
+/vis/modeling/trajectories/drawByParticleID-0/set mu+ magenta
+/vis/modeling/trajectories/drawByParticleID-0/set tau- blue
+/vis/modeling/trajectories/drawByParticleID-0/set tau+ magenta
+/vis/modeling/trajectories/drawByParticleID-0/set nu_e red
+/vis/modeling/trajectories/drawByParticleID-0/set anti_nu_e red
+/vis/modeling/trajectories/drawByParticleID-0/set nu_mu red
+/vis/modeling/trajectories/drawByParticleID-0/set anti_nu_mu red
+/vis/modeling/trajectories/drawByParticleID-0/set nu_tau red
+/vis/modeling/trajectories/drawByParticleID-0/set anti_nu_tau red
+/vis/modeling/trajectories/drawByParticleID-0/set neutron grey
+/vis/modeling/trajectories/drawByParticleID-0/set pi- cyan
+/vis/modeling/trajectories/drawByParticleID-0/set pi+ red
+/vis/modeling/trajectories/drawByParticleID-0/set kaon+ red
+/vis/modeling/trajectories/drawByParticleID-0/set kaon- cyan
+/vis/modeling/trajectories/drawByParticleID-0/set proton red
+/vis/modeling/trajectories/drawByParticleID-0/set anti_proton cyan
+/vis/modeling/trajectories/drawByParticleID-0/set alpha red
+/vis/modeling/trajectories/select drawByParticleID-0
+
+/vis/scene/add/trajectories smooth
+/vis/scene/endOfRunAction refresh
+/vis/viewer/flush

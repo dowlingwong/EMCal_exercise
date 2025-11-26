@@ -1,0 +1,77 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage{../common/style_exercise}
+\input{../common/definitions}
+\usepackage[nameinlink]{cleveref}
+
+\begin{document}
+\names % header snippet with names of all facilitators of the exercises, see style_exercise.sty for details and adapt accordingly
+\header{5}{January 9, 2025} % put here # of exercise 
+
+\section*{About \geant}
+In experimental particle physics, Monte Carlo (MC) methods (simulations) are used to design detectors, understand their behaviour and compare experimental data with theory.
+MC production involves two steps: event generation and detector response simulation.
+In the first step, sets of outgoing particles produced by collisions of incoming particles in the accelerator, called {\it events}, are generated.
+The detector response to these particles is then simulated.
+The most widely used tool in particle physics for this purpose is \geantf\footnote{\url{https://geant4.web.cern.ch}}.
+
+\geantf is a toolkit for simulating the passage of particles through matter.
+Its applications include particle, nuclear and accelerator physics, as well as medical and space science studies.
+\geantf includes tools for geometry handling, tracking, detector response, run management, visualisation and a user interface:
+\begin{itemize}
+\item ``Geometry'' is a description of the physical layout of the experiment.
+  This includes the detectors, absorbers, etc., and considerations of how the layout will affect the trajectories of particles in the experiment.
+\item ``Tracking'' is the simulation of the passage of a particle through matter.
+  This takes into account possible interactions and decay processes.
+\item ``Detector response'' is a record of when a particle passes through a given volume of a detector and approximates how a real detector would respond.
+\item ``Run management'' involves recording the details of each run (a set of events) and setting up the experiment in different configurations between runs.
+\item The \geantf package provides a range of visualisation options, including OpenGL, and a user interface based on tcsh.
+\end{itemize}
+
+To simulate the events we will use \geantf.
+We will control \geantf using Python via the interface provided with the \texttt{geant4\_simulation} package.
+This package is a wrapper for the Geant4 Python bindings \texttt{Geant4Py}\footnote{\url{https://geant4-userdoc.web.cern.ch/UsersGuides/ForApplicationDeveloper/html/LanguageBindings/languageBindings.html}}.
+It provides the necessary code to perform simple detector simulations with \geantf.
+This includes the description of various geometries needed for the exercises, some additional classes to allow tracking of particles and energy deposition in the detector, and a simple interface to control the simulation.
+The parts of the interface needed to work on the exercises are briefly described in the corresponding section of the Jupyter Notebook provided for the exercise.
+
+The exercises, as well as the complete source code and some introductory code showing the use of the Python package \texttt{geant4\_simulation}, are provided in the form of Jupyter Notebooks in the following repository, familiar from the previous exercises: \par
+{\centering \footnotesize
+    \url{https://gitlab.etp.kit.edu/Lehre/tp1_forstudents}\par
+}
+Log on to the \href{https://jupytermachine.etp.kit.edu}{jupytermachine} and choose the \textbf{Geant4} image.
+If you have already loaded an image, you might have to change it as described in the first exercise.
+As usual, after updating the repository, you will find a new folder \texttt{Exercise05} containing two Jupyter Notebooks, \texttt{Exercise05\_Part1.ipynb} and \texttt{Exercise05\_Part2.ipynb}, as well as the python package \texttt{geant4\_simulation} required for this exercise.
+
+If you are having trouble updating the repository using \texttt{Git -> Pull from Remote}, please switch back to the \textbf{Datenanalyse} image temporarily for this task only.
+
+The exercises will be done in the two Jupyter Notebooks, which also contain all the descriptions below.
+From this point on, you will only need the Jupyter Notebook to complete the exercise.
+
+In this exercise a short introduction is given in notebook \texttt{Exercise05\_Part1.ipynb}, while a sampling calorimeter is simulated with \geantf in notebook \texttt{Exercise05\_Part2.ipynb}.
+
+
+\newpage
+\section*{Commands of the \geant interface}
+This section gives some of the commonly used code snippets of the \geantf interface.
+These are also given as an introduction in the Jupyter Notebook.
+The following Python commands create a particle simulation and an event display using \geantf. You can find them in the Jupyter Notebook as well.
+\begin{itemize}
+\item \begin{verbatim} g4 = g4sim.ApplicationManager() \end{verbatim}
+  Create a new instance of the ApplicationManager class.
+\item \begin{verbatim} g4.set_geometry(<filename>) \end{verbatim}
+  Set the geometry to the one described in the file:\\\texttt{./geant4\_simulation/geometry/$<$\texttt{filename}$>$.py}.
+\item \begin{verbatim} g4.set_physics_list('QGSP_BERT') \end{verbatim}
+  Set the `physics lists' we will need in the corresponding exercise.
+  The physics list specifies all particles and interactions considered in the simulation.
+  It is mandatory for all simulations, you do not need to modify it and the relevant physics lists for each exercise are given in the exercise.
+\item \begin{verbatim} g4.initialize() \end{verbatim}
+  Initialise the \geantf kernel.
+\item \begin{verbatim} g4.set_particle(<PDG code>) \end{verbatim}
+  Set the type of the primary particle. The $<$\texttt{PDG code}$>$ is an integer number defined by the Particle Data Group to specify different particle types\footnote{\url{https://pdg.lbl.gov/2024/reviews/rpp2024-rev-monte-carlo-numbering.pdf}}. For example, \texttt{<PDG code>=22} is a photon.
+\item \begin{verbatim} g4.set_energy(<energy>) \end{verbatim}
+  Set the energy of the primary particle in units of \si{GeV}.
+\item \begin{verbatim} g4.start_run() \end{verbatim}
+  Start the simulation. You can also provide an argument which will define the number of simulated events, the default is 1. Also by default, the output of the simulation is printed as text, if you want a graphical representation you need to use \texttt{visualize=True}.
+\end{itemize}
+
+\end{document}
