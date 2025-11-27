@@ -1,1 +1,14 @@
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Python bytecode cache
+__pycache__/
+
+# MacOS metadata
 .DS_Store
+
+# Figures (if they are generated, not source)
+figures/
+
+# (Optional) Keep empty dirs
+.gitkeep
