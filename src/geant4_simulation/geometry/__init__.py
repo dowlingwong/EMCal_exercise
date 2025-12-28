@@ -15,15 +15,21 @@ __author__ = 'Maximilian Burkart'
 
 import glob
 import os
+from pathlib import Path
 
 
 def trim_path(path):
-    return os.path.basename(path).split(".")[0]
+    return Path(path).stem
 
-# Get a list of all python files without underscores in the geometry
-# directory.
-directory = "."
-file_list = glob.glob(directory + '/geant4_simulation/geometry/[!_]*.py')
+
+def _geometry_dir():
+    """Absolute path to the geometry directory for robust imports."""
+    return Path(__file__).resolve().parent
+
+
+# Get a list of all python files without underscores in the geometry directory.
+directory = _geometry_dir()
+file_list = glob.glob(str(directory / "[!_]*.py"))
 
 # Separate the paths from the file names and cut off the file specifier.
 det_list = list(map(trim_path, file_list))

@@ -9,6 +9,7 @@ the detector geometry in the window is provided.
 __author__ = 'Maximilian Burkart'
 
 import os
+from pathlib import Path
 import subprocess
 from IPython.display import Image, display
 
@@ -16,7 +17,8 @@ from Geant4 import *
 
 
 def initialize():
-    gUImanager.ExecuteMacroFile("geant4_simulation/vis_dawn.mac")
+    macro_path = Path(__file__).resolve().parent / "vis_dawn.mac"
+    gUImanager.ExecuteMacroFile(str(macro_path))
     return
 
 

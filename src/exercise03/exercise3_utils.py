@@ -1,14 +1,25 @@
+from pathlib import Path
+
 import numpy as np
 import uproot
 
 
 # Define sampling fraction constant
 sfc = 0.11
+DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "exercise03"
 
 
-def getData(fname="", procName="Events"):
-    """Load data from a ROOT file."""
-    input_file = uproot.open(fname)
+def _resolve_path(fname: str) -> str:
+    """Return an absolute path for the requested ROOT file."""
+    file_path = Path(fname)
+    if not file_path.is_absolute():
+        file_path = DATA_DIR / fname
+    return str(file_path)
+
+
+def getData(fname: str = "", procName: str = "Events"):
+    """Load data from a ROOT file, resolving it from the data directory by default."""
+    input_file = uproot.open(_resolve_path(fname))
     dq_dict = input_file[procName].arrays(library="np")
     dq_events = {
         "Hits": {
@@ -19,7 +30,7 @@ def getData(fname="", procName="Events"):
     return dq_events
 
 
-def process_event(sample_type="electron", event_number=0):
+def process_event(sample_type: str = "electron", event_number: int = 0):
     if event_number < 0 or event_number > 10:
         raise ValueError("Event number must be between 0 and 9")
 
