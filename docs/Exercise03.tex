@@ -1,234 +1,186 @@
 \documentclass[a4paper,12pt]{article}
 \usepackage{../common/style_exercise}
 \input{../common/definitions}
+% --- packages for the Section 4 supplement (latent-variable models) ---
+\usepackage{amsmath,amssymb,booktabs,graphicx}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,calc}
+\graphicspath{{img/exercise03/}}
 \usepackage[nameinlink]{cleveref}
 
 \begin{document}
 \names % header snippet with names of all facilitators of the exercises, see style_exercise.sty for details and adapt accordingly
-\header{3}{January 8, 2026} % put here # of exercise 
+\header{3}{\textbf{[TBD]} January 2027} % put here # of exercise   % TODO(dates): set the exact hand-in date for WS 2026/27
 
 In this exercise, we will go through several aspects of calorimetry in high energy physics. 
 We will start with the basic concepts related to the interaction of particles with matter and how they are exploited to perform energy measurements.
-Then, we will use simulated events from the \href{https://www.phenix.bnl.gov/}{PHENIX} experiment to visualize some examples of what we can expect to observe in a real experiment.
-Each particle typically deposit energy in several channels of a calorimeter, which introduces the problem of how to associate each energy deposit to the correct particle, and how to correctly count how many particles deposited energy in the calorimeter.
+Then, we will use simulated events in a calorimeter with the geometry of the \href{https://www.phenix.bnl.gov/}{PHENIX} electromagnetic calorimeter to visualize some examples of what we can expect to observe in a real experiment.
+Each particle typically deposits energy in several channels of a calorimeter, which introduces the problem of how to associate each energy deposit to the correct particle, and how to correctly count how many particles deposited energy in the calorimeter.
 Clustering algorithms are fundamental tools to fulfill this task: we will introduce the k-means algorithm, a relatively simple and intuitive algorithm to perform clustering.
-We will guide you through the implementation of the k-mean algorithm, and eventually to compare your own creation with the implementation available in sklearn!
-Finally, we will briefly introduce a more realistic approach, based on the seeding of clusters.
+We will guide you through the implementation of the k-means algorithm, and you will compare your own creation with the implementation available in scikit-learn!
+We will then introduce a more realistic approach, based on the seeding of clusters.
+Finally, Section~4 connects k-means to the Expectation-Maximization algorithm and to Variational Autoencoders (see the pages after this one).
 
-As you will quickly notice, the notebook has a lot of content: we know this. The hand-in and review will be on the 8th of January 2026, and we will offer one session where you can collect your questions and doubts, on the 27th of November 2025, from 14:00 to 17:00.
+% TODO(dates): replace the two [TBD] placeholders below with the WS 2026/27 dates
+As you will quickly notice, the notebook has a lot of content: we know this. The hand-in and review will be in January 2027 (\textbf{exact date: [TBD]}), and we will offer one session where you can collect your questions and doubts in November 2026 (\textbf{date and time: [TBD]}).
 
 To start with the exercise, please login to the \href{https://jupytermachine.etp.kit.edu}{jupytermachine}, 
 start the standard \texttt{Datenanalyse} container and update your \texttt{tp1\_forstudents} repository, 
 e.g. by navigating to the directory in the file browser on the left and then selecting \texttt{Git -> Pull from Remote} from the menu bar. 
 A new subfolder \texttt{Exercise03} should appear with a Jupyter notebook \texttt{Exercise03.ipynb}. 
-Open the notebook and work though the different tasks that are given inside.
+Open the notebook and work through the different tasks that are given inside.
 
+% =====================================================================
+% Section 4 supplement: latent-variable models (K-means -> EM -> VAE)
+% =====================================================================
+\newpage
+\sloppy % long code names and links in this supplement
+\section*{Section 4: Latent-variable models --- from $k$-means to EM to VAE}
+\addcontentsline{toc}{section}{Section 4: Latent-variable models}
+
+The last section of the notebook revisits the clustering problem from the point of view of \emph{latent-variable models}, following the lecture
+``Variational Autoencoder'' (K.~He, MIT 6.S978 \emph{Deep Generative Models}, 2024).
+You will see that the $k$-means algorithm of Section~3, the Expectation-Maximization (EM) algorithm and the Variational Autoencoder (VAE) are three ways of
+maximising one and the same objective, and you will use them for three calorimetry tasks:
+sharing the energy of overlapping showers, choosing the number of clusters, and learning what a ``normal'' electromagnetic shower looks like.
+
+\subsection*{The generative picture}
+
+A latent (hidden) variable $z$ is drawn from a prior $p(z)$ and a generator produces the observation, $x\sim p_\theta(x\,|\,z)$.
+In a calorimeter this is the physics itself: for a single \emph{hit}, $z$ says which particle produced it and $p_\theta(x|z)$ is the lateral shower profile around the impact point;
+for a whole \emph{shower}, $z$ contains the impact point, energy and shape, and $p_\theta(x|z)$ is the electromagnetic cascade plus the detector response.
+For any distribution $q(z)$ the log-likelihood can be decomposed as
+\begin{equation}
+\log p_\theta(x) \;=\; \underbrace{\mathbb{E}_{q(z)}\big[\log p_\theta(x\,|\,z)\big] - D_\mathrm{KL}\big(q(z)\,\|\,p(z)\big)}_{\text{ELBO}(q,\theta)}
+\;+\; \underbrace{D_\mathrm{KL}\big(q(z)\,\|\,p_\theta(z\,|\,x)\big)}_{\geq 0},
+\label{eq:elbo}
+\end{equation}
+so the \emph{evidence lower bound} (ELBO) is a lower bound on $\log p_\theta(x)$, which becomes tight when $q$ equals the posterior $p_\theta(z|x)$.
+The three methods differ only in how they represent $q$ and how they maximise the ELBO (\cref{tab:methods,fig:schematic}).
+
+\begin{table}[h]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}llll@{}}
+\toprule
+ & representation of $q(z)$ & maximisation of the ELBO & latent $z$ \\
+\midrule
+$k$-means & one-hot (hard) assignment & alternate: assign / update & discrete \\
+EM (Gaussian mixture) & exact posterior (soft) & alternate: E-step / M-step & discrete \\
+VAE & encoder network $q_\phi(z\,|\,x)$ & stochastic gradient descent & continuous \\
+\bottomrule
+\end{tabular}
+\caption{Three ways to maximise the ELBO of \cref{eq:elbo}.}
+\label{tab:methods}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[
+  font=\small, >={Stealth[length=2.2mm]},
+  box/.style={draw, rounded corners=2pt, minimum height=7mm, align=center, inner sep=3pt},
+  dat/.style={box, fill=gray!12},
+  lat/.style={box, fill=orange!20},
+  net/.style={box, fill=teal!15},
+  lab/.style={font=\small\bfseries, anchor=west, text width=2.4cm}]
+  % k-means as an autoencoder
+  \node[lab] (L1) at (-1.2, 0) {$k$-means};
+  \node[dat, right=0.3cm of L1] (x1) {$x$};
+  \node[net, right=0.6cm of x1] (e1) {nearest centroid\\$\arg\min_k \lVert x-\mu_k\rVert$};
+  \node[lat, right=0.6cm of e1] (z1) {$z$: one-hot\\($k$ values)};
+  \node[net, right=0.6cm of z1] (d1) {codebook\\look-up $\mu_z$};
+  \node[dat, right=0.6cm of d1] (y1) {$x'=\mu_z$};
+  \draw[->] (x1) -- (e1); \draw[->] (e1) -- (z1); \draw[->] (z1) -- (d1); \draw[->] (d1) -- (y1);
+  % EM
+  \node[lab] (L2) at (-1.2, -1.9) {EM\\(Gaussian mixture)};
+  \node[dat, right=0.3cm of L2] (x2) {$x$};
+  \node[net, right=0.6cm of x2] (e2) {E-step: posterior\\$r_{ik}=q(z_i{=}k)$};
+  \node[lat, right=0.6cm of e2] (z2) {$z$: soft\\responsibilities};
+  \node[net, right=0.6cm of z2] (d2) {M-step: update\\$\pi_k,\mu_k,\Sigma_k$};
+  \draw[->] (x2) -- (e2); \draw[->] (e2) -- (z2); \draw[->] (z2) -- (d2);
+  \draw[->, dashed] (d2.south) -- ++(0,-0.35) -| node[pos=0.25, below, font=\footnotesize]{iterate (coordinate ascent)} (e2.south);
+  % VAE
+  \node[lab] (L3) at (-1.2, -4.9) {VAE};
+  \node[dat, right=0.3cm of L3] (x3) {$x$};
+  \node[net, right=0.6cm of x3] (e3) {encoder\\$q_\phi(z|x)$: $\mu,\sigma$};
+  \node[lat, right=0.6cm of e3] (z3) {$z=\mu+\sigma\odot\varepsilon$\\(continuous)};
+  \node[net, right=0.6cm of z3] (d3) {decoder\\$p_\theta(x|z)$};
+  \node[dat, right=0.6cm of d3] (y3) {$x'$};
+  \draw[->] (x3) -- (e3); \draw[->] (e3) -- (z3); \draw[->] (z3) -- (d3); \draw[->] (d3) -- (y3);
+  \node[font=\footnotesize, above=0.12cm of z3] {noise $\varepsilon\sim\mathcal{N}(0,\mathbb{I})$};
+  \node[font=\footnotesize, below=0.25cm of z3, align=center] {loss $=-$ELBO, encoder and decoder trained jointly by SGD};
+\end{tikzpicture}
+\caption{$k$-means is an autoencoder with a discrete bottleneck (top); EM replaces the hard assignment by the exact, soft posterior and alternates two maximisation steps (middle);
+the VAE replaces the analytic posterior by an encoder network and the discrete latent by a continuous one (bottom).}
+\label{fig:schematic}
+\end{figure}
+
+\subsection*{EM for an energy-weighted Gaussian mixture}
+
+Model the hit positions $x_i$ of an event as a mixture of $K$ Gaussians, $p_\theta(x)=\sum_k \pi_k\,\mathcal{N}(x\,|\,\mu_k,\Sigma_k)$,
+and give every hit a weight $w_i\propto E_i$ (normalised to $\sum_i w_i = N$). EM alternates
+\begin{align}
+\text{E-step:}\quad & r_{ik} = \frac{\pi_k\,\mathcal{N}(x_i|\mu_k,\Sigma_k)}{\sum_j \pi_j\,\mathcal{N}(x_i|\mu_j,\Sigma_j)}, \\
+\text{M-step:}\quad & N_k=\sum_i w_i r_{ik},\qquad \pi_k = \frac{N_k}{\sum_i w_i},\qquad
+\mu_k=\frac{1}{N_k}\sum_i w_i r_{ik}\,x_i, \nonumber\\
+& \Sigma_k=\frac{1}{N_k}\sum_i w_i r_{ik}\,(x_i-\mu_k)(x_i-\mu_k)^\mathsf{T}+\varepsilon\,\mathbb{I}.
+\end{align}
+The term $\varepsilon=(5.5\,\text{cm})^2/12$ appears because a hit is a \emph{tower}, not a point: averaging $\log\mathcal{N}$ over the tower area adds $-\tfrac{\varepsilon}{2}\,\mathrm{tr}\,\Sigma_k^{-1}$ to the log-likelihood.
+Both steps increase the ELBO, so EM converges monotonically. With $\Sigma_k=\sigma^2\mathbb{I}$ and $\sigma\to 0$ the responsibilities become one-hot and EM turns into (energy-weighted) $k$-means.
+The soft responsibilities share the energy of a tower between overlapping showers, $E_k=\sum_i r_{ik}E_i$ (\cref{fig:toy}),
+and the likelihood provides a principled way to choose $K$, the Bayesian Information Criterion $\mathrm{BIC}=-2\log p_{\hat\theta}(x)+n_\mathrm{par}\ln N$.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.92\textwidth]{toy_event_truth.png}
+\caption{A toy event with two overlapping showers (40 and 15~GeV). Left: measured tower energies. Right: Monte-Carlo truth --- the fraction of each tower's energy deposited by shower~1.
+Towers in between contain energy from both showers, which a hard assignment cannot describe.}
+\label{fig:toy}
+\end{figure}
+
+\subsection*{A VAE for shower images}
+
+For Problems~4.3 and 4.4 a data point is a whole shower: the $7\times7$ tower energies around the seed, normalised to a sum of one (\cref{fig:windows}).
+The VAE has a Gaussian encoder $q_\phi(z|x)=\mathcal{N}(\mu_\phi(x),\mathrm{diag}\,\sigma^2_\phi(x))$, a prior $p(z)=\mathcal{N}(0,\mathbb{I})$ and a decoder that predicts the energy fraction $p_j(z)$ of every tower.
+Assuming the energy arrives in $N_q$ independent ``quanta'' gives a multinomial likelihood, and the loss per shower is
+\begin{equation}
+\mathcal{L}(x)= -N_q\sum_j x_j\log p_j(z) \;+\; \tfrac12\sum_l\big(\mu_l^2+\sigma_l^2-\log\sigma_l^2-1\big),
+\qquad z=\mu+\sigma\odot\varepsilon,\;\; \varepsilon\sim\mathcal{N}(0,\mathbb{I}).
+\end{equation}
+The \emph{reparametrisation} $z=\mu+\sigma\odot\varepsilon$ moves the randomness into an input, so that gradients can flow through the sampling step.
+The VAE is written in plain NumPy, so that every term of the loss and of its gradient is visible.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\textwidth]{shower_windows.png}
+\caption{Training data for Problems~4.3 and 4.4: $7\times 7$ tower windows around the seed tower of simulated electromagnetic showers (logarithmic colour scale); the cross marks the true impact point.}
+\label{fig:windows}
+\end{figure}
+
+\subsection*{Your tasks in Section 4}
+
+The PHENIX samples contain no information about which particle produced which hit, and too few events to train a network.
+The notebook therefore provides a fast toy simulation with full Monte-Carlo truth, tuned to the shower containment of the PHENIX electrons:
+\texttt{ex3.generate\_shower\_event} (events with several showers) and \texttt{ex3.make\_shower\_images} (shower windows).
+Only four cells require your code (marked \texttt{\# --> TODO}); the analysis and plotting cells are provided, so concentrate on interpreting the plots.
+\begin{description}
+\item[Problem 4.1] Energy-weighted $k$-means, seeded with your \texttt{seed\_search}: compare the position resolution with the unweighted version and with the seed-tower centre.
+\item[Problem 4.2] Implement the E-step, M-step and ELBO of an energy-weighted Gaussian mixture (unit test provided).
+Visualise EM as coordinate ascent on the ELBO, show that $k$-means is its $\sigma\to0$ limit, study the energy sharing as a function of the shower separation, choose $K$ with the BIC, and apply the method to real $A'\to e^+e^-$ events.
+\item[Problem 4.3] Use your $k$-means class on 49-dimensional shower vectors: interpret the codebook of shower templates, use it as an autoencoder and study how much information a code of $\log_2 K$ bits carries.
+\item[Problem 4.4] Implement the reparametrisation, the KL term and the reconstruction loss (with gradients) of a VAE, train it (about a minute on a CPU) and explore the latent space,
+the decoded shower manifold, the generation of new showers and the use of the ELBO to detect merged clusters.
+\end{description}
+
+\subsection*{Further reading}
+\begin{itemize}\setlength\itemsep{0pt}
+\item D.~P.~Kingma, M.~Welling, \emph{Auto-Encoding Variational Bayes}, ICLR 2014, \href{https://arxiv.org/abs/1312.6114}{arXiv:1312.6114}.
+\item R.~M.~Neal, G.~E.~Hinton, \emph{A view of the EM algorithm that justifies incremental, sparse, and other variants}, in \emph{Learning in Graphical Models}, Springer, 1998.
+\item T.~Hastie, R.~Tibshirani, J.~Friedman, \emph{The Elements of Statistical Learning}, Springer (Sec.~8.5: the EM algorithm).
+\item A.~van den Oord, O.~Vinyals, K.~Kavukcuoglu, \emph{Neural Discrete Representation Learning} (VQ-VAE), NeurIPS 2017, \href{https://arxiv.org/abs/1711.00937}{arXiv:1711.00937}.
+\item G.~Grindhammer, S.~Peters, \emph{The parameterized simulation of electromagnetic showers in homogeneous and sampling calorimeters}, \href{https://arxiv.org/abs/hep-ex/0001020}{arXiv:hep-ex/0001020}.
+\item E.~Nalisnick et al., \emph{Do Deep Generative Models Know What They Don't Know?}, ICLR 2019, \href{https://arxiv.org/abs/1810.09136}{arXiv:1810.09136}.
+\end{itemize}
 
 \end{document}
-
-% To start with the exercise, please login to the \href{https://jupytermachine.etp.kit.edu}{jupytermachine}, start the standard \texttt{Datenanalyse} container and update your \texttt{tp1\_forstudents} repository, e.g. by navigating to the directory in the file browser on the left and then selecting \texttt{Git -> Pull from Remote} from the menu bar.
-% A new subfolder \texttt{Exercise03} should appear with a Jupyter notebook \texttt{Exercise03.ipynb}.
-% Open this notebook and work though the different tasks that are given inside.
-% 
-% But... before you navigate through the notebook, please read the following sections, which will give you some fundamental information to help you complete the exercise successfully.
-% 
-% \section{Electromagnetic cascades in a calorimeter}
-% 
-% \subsection{Energy loss of electrons/positrons and photons}
-% 
-% \begin{figure}[h]
-%     \centering
-%     \begin{minipage}{0.46\textwidth}
-%         \centering
-%         \includegraphics[width=\textwidth]{figures/e_eng_loss.png}
-%         \caption{Energy loss of electron as a function of energy.}
-%     \end{minipage}%
-%     \hspace{0.05\textwidth}
-%     \begin{minipage}{0.46\textwidth}
-%         \centering
-%         \includegraphics[width=\textwidth]{figures/x0.png}
-%         \caption{Electromagnetic cascade}
-%     \end{minipage}
-% \end{figure}
-% 
-% Bremsstrahlung is the primary energy loss process for electrons/positrons above \( \sim 10 \)~MeV, while photons lose energy mainly through the production of electron–positron pairs.
-% High-energy photons, electrons, and positrons create a cascade of secondary particles—known as an “electromagnetic shower.”
-% The following quantities (\textit{Thomson’s approximation}) are defined:
-% 
-% \begin{itemize}
-%     \item \textbf{Radiation Length} \( X_0 \): Average distance over which the electron energy reduces by \( 1/e \):
-%     \[
-%     X_0 \approx \frac{1}{4 \, \alpha \, n \, Z^2 \, r_e^2 \ln \left( \frac{287}{\sqrt{Z}} \right)}
-%     \]
-%     where \( \alpha \) is the fine-structure constant, \( n \) is the number density of the nucleus, \( Z \) is the atomic number of the nucles, and \( r_e \) is the classical electron radius.
-% 
-%     \item \textbf{Critical Energy} \( E_c\): Energy at which ionization becomes the dominant energy loss:
-%     \[
-%     E_c \approx \frac{800\text{MeV}}{Z}
-%     \]
-% 
-%     \item \textbf{Molière Radius} \( R_M \): Represents the lateral spread of an electromagnetic shower, mainly due to multiple scattering:
-%     \[
-%     R_M = \frac{21 \, \text{MeV}}{E_c}  X_0 \, (\text{g/cm}^2)
-%     \]
-%     Approximately 95\% of the shower energy is contained within \( 2 R_M \) (transverse width).
-% 
-%     \item \textbf{Maximum Particle Count Length} \( x_{\text{max}} \): The shower reaches the maximum particle count after \( x_{\text{max}} \) radiation lengths, given by:
-%     \[
-%     x_{\text{max}} = \frac{\ln(E / E_c)}{\ln 2} X_0
-%     \]
-%     where \( E \) is the initial energy. \( x_{\text{max}} \) is also called longitudinal depth.
-% \end{itemize}
-% 
-% \subsection{Energy loss of muons}
-% 
-% For muons with energies less than 100 GeV, the ionization is the dominant energy-loss process.
-% Muons travel significant distances in dense materials: for example, a 10 GeV muon loses order of 10 MeV/cm in iron and has a range of several meters.
-% 
-% \begin{figure}[h]
-%     \centering
-%     \includegraphics[width=0.8\textwidth]{figures/mu_eng_loss.png}
-%     \caption{Energy loss of muons as a function of the muon momentum.}
-% \end{figure}
-% 
-% A particle with a momentum close to the minimum ionization point is called a minimum ionizing particle (MIP).
-% A particle with a much larger momentum but with an energy loss comparable to that of the minimum ionization point is also called a MIP.
-% 
-% \section{Calorimetry and reconstruction}
-% 
-% We have prepared ROOT n-tuples containing hit information from EMCal simulations at the PHENIX experiment at Brookhaven National Laboratory (\url{https://www.phenix.bnl.gov/}).
-% The data were generated using a particle gun with a gaussian energy distribution, ranging from 5 GeV to 80 GeV.
-% %Details and specifications could be found at the last section ~\hyperref[sec:GEANT4]{Intro to GEANT4}. In this section, we are going to discuss about the shapes of particle hits on EMCal.
-% The EMCal at the PHENIX experiment covers an area of 2~m~×~4~m perpendicular to the beamline. 
-% This corresponds to 3 × 6 EMCal super modules where:
-% \begin{itemize}
-%     \item 1 EMCal super module = 6 × 6 = 36 EMCal modules.
-%     \item 1 EMCal module is 11 cm × 11 cm and contains 2 × 2 = 4 towers/channels, with a granularity of approximately 5.5 cm.
-% \end{itemize}
-% In total, there are 2592 towers or channels to read out the energy deposits from the EMCal.
-% 
-% For practical purposes, consider the PHENIX EMCal as a 2D matrix of 2592 channels (72 horizontal x 36 vertical), where each channel has a dimension of (5.535cm x 5.535cm x 36.96cm).
-% 
-% In the notebook, you have the option to get readout for electron and dielectron events from the EMCal.
-% The readout has the following format:
-% \begin{verbatim}
-% 'elmID': array([1207, 1208, 1243, 1244, 1245, 1246, 1279, 1280, 1281, 1282,
-%        1283, 1314, 1315, 1316, 1317, 1318, 1352, 1387, 1388, 1389, 1390],
-%        dtype=int32), 
-% 'edep': array([2.1672759e-03, 2.3865167e-03, 6.9637364e-03, 6.5519638e-02,
-%        5.9960117e-03, 1.5223619e-03, 1.5519783e-02, 1.3763729e+00,
-%        1.7959915e-02, 1.1316873e-03, 2.6412117e-03, 1.1183993e-03,
-%        3.0373151e-03, 1.8506199e-02, 5.9680296e-03, 1.2358509e-03,
-%        1.5430434e-03, 1.2675102e-03, 8.8297541e-04, 8.7783835e-04,
-%        1.5175857e-03],
-%        dtype=float32)
-% \end{verbatim}
-% where {\tt elmID[X]} is the identifier of the channel that measured a given {\tt edep[X]}.
-% The values of {\tt elmID[X]} vary from 0 to 2591 (corresponding to the total number of channels).
-% 
-% \subsection{Moments of a distribution}
-% 
-% The moments of a distribution provide useful information about its shape and spread. Below are the formulas for different moments:
-% 
-% \begin{itemize}
-%     \item \textbf{1st order (raw)}: 
-%     \[
-%     \text{Mean: } \mu := \mathbb{E}[X] = \frac{\mu_1}{1}
-%     \]
-%     \item \textbf{2nd order (central)}: 
-%     \[
-%     \text{Variance: } \sigma^2 = \mathbb{E}[(X - \mu)^2] = \frac{\mu_2}{1^2} = \mu_2
-%     \]
-%     \item \textbf{3rd order (standardized)}: 
-%     \[
-%     \text{Skewness}\gamma = \mathbb{E} \left[ \left( \frac{X - \mu}{\sigma} \right)^3 \right] = \frac{\mathbb{E}[(X - \mu)^3]}{(\mathbb{E}[(X - \mu)^2])^{3/2}}
-%     \]
-%     \item \textbf{4th order (standardized)}: 
-%     \[
-%     \text{Kurtosis } g = \mathbb{E} \left[ \left( \frac{X - \mu}{\sigma} \right)^4 \right] = \frac{\mathbb{E}[(X - \mu)^4]}{(\mathbb{E}[(X - \mu)^2])^2}
-%     \]
-% \end{itemize}
-% 
-% They are helpful to analyze the 2D distribution of the EMCal hits.
-% 
-% \section{Calorimetry and clustering algorithms}
-% 
-% Due to the complex patterns of particle interactions, EMCal readouts can become dense and chaotic.
-% In these situations, clustering algorithms are essential to group hits that originate from a single particle, helping to reconstruct particle flows or analyze jets.
-% 
-% \subsection{Clustering using the $K$-means algorithm}
-% 
-% The $K$-means algorithm is a popular unsupervised machine learning technique used to partition data into $K$ distinct clusters based on feature similarity. 
-% 
-% \begin{enumerate}
-%     \item \textbf{Initialize centroids}: Randomly select $K$ hits; these hits will be the starting, $K$, centroids
-%     \item \textbf{Assign clusters}: Assign hits to the nearest centroid, forming $K$ clusters
-%     \item \textbf{Update centroids and reassign hits}: Calculate the centroid (mean of the coordinates) of each cluster; check if a hit in a cluster is closer to another centroid; if so, reallocate the hits to the closest cluster.
-%     \item \textbf{Iterate}: Repeat step 3 until no more hits change cluster (or until a certain tolerance).
-%     \item \textbf{Output}: The final centroids represent the centers of the $K$ clusters, and each hit is assigned to the cluster of its nearest centroid.
-% \end{enumerate}
-% 
-% \subsection{Finding the optimal number of clusters}
-% 
-% $K$-means is an efficient method that works well with large datasets, making it ideal for quickly organizing data into clusters based on similarity.
-% However, one limitation is that the number of clusters, $K$, must be predetermined, which can be challenging without prior knowledge of the data structure.
-% To address this, techniques such as the Elbow and the Silhouette methods are often used to find the optimal number of clusters, helping to ensure that the chosen $K$ best captures the natural groupings within the data.
-% In any case, for a given event, one must run the $K$-means algorithm multiple times, scanning different values of $K$ and identifying the optimal value of $K$.
-% 
-% \subsubsection{Elbow method}
-% 
-% The Elbow Method helps find the optimal number of clusters \( K \) by computing the within-cluster sum of squares (WCSS$_K$):
-% \[
-%     \text{WCSS}_K = \sum_{i=1}^{K} \sum_{x \in C_i} \| x - \mu_i \|^2
-% \]
-% where $K$ is the number of clusters, $C_i$ is the $i$-th cluster, $x$ is a hit in the cluster, $\mu_i$ is the centroid of the cluster $C_i$, and $\| x - \mu_i \|^2$ is the squared Euclidean distance between the hit and the centroid.
-% If you plot WCSS$_K$ as a function of $K$, you will notice that as \( K \) increases, WCSS$_K$ decreases.
-% The "elbow" point, where the decrease slows down "sharply", indicates the optimal \( K \).
-% 
-% To determine the elbow point more precisely, you can:
-% calculate the second derivative of WCSS with respect to \( K \) and identify the point with the largest change, indicating the most significant slowdown in the rate of decrease;
-% use algorithms such as the "Kneedle" algorithm, which automatically detects the "knee" or "elbow" in the curve by analyzing the curvature.
-% 
-% \subsubsection{Silouette method}
-% 
-% The Silhouette method evaluates the quality of clustering by calculating a "silhouette score" for each hit, based on how similar it is to hits in its own cluster compared to hits in the nearest other cluster. For a given number of clusters \( K \), the average silhouette score $S$ ranges from -1 to 1: $S$ near 1 indicates well-clustered hits, close to their own cluster and far from others; $S$ near 0 indicates the presence of hits on the boundary between clusters (overlapping clusters); a negative $S$ indicates that many hits are assigned to the wrong cluster.
-% 
-% To determine the optimal \( K \), calculate the average silhouette score for different \( K \) values and choose the \( K \) that maximizes this score, indicating the best-defined clusters.
-% Here is a method to calculate the silhouette score $S$:
-% \begin{itemize}
-%     \item Compute the intra-cluster distance $a_i$: for each hit $i$ in a cluster, compute the average Euclidean distance to all other points within the same cluster.
-%     \item Compute the nearest cluster distance $b_i$: for each hit $i$ in a cluster, compute the average euclidean distance to all points of another cluster; repeat for all clusters and take the smallest average distance computed.
-%     \item Compute silhouette hit score $s_i$: for each hit $i$ in a cluster, compute
-%     \[
-%     s_i = \frac{b_i - a_i}{\max(a_i, b_i)}
-%     \]
-%     and repeat it for all hits in the event.
-%     \item Calculate the average silhouette score $S$ of the event, i.e. the average of $s_i$ over all hits in the event.
-% \end{itemize}
-% 
-% \subsubsection{Energy seeding}
-% 
-% We are future data scientists, but also future physicists!
-% Let's approach the determination of \(K\) from the perspective of physics.
-% The EMCal readouts provide not only the hit position information, but also the energy deposition measured for each hit.
-% 
-% "Energy seeds" in calorimetry refer to localized points in the detector where the energy deposition is significantly higher than the surrounding areas. These seeds act as initial markers for clustering algorithms, helping to identify and group hits that are likely to belong to the same cluster. By starting with these high-energy regions, energy seed-based clustering improves accuracy in reconstructing particle trajectories and separating overlapping showers.
-% 
-% \begin{figure}[h]
-%     \centering
-%     \includegraphics[width=0.6\textwidth]{figures/padding.png}
-%     \caption{A possible logic for seed searching}
-% \end{figure}
-% 
-% Here there is an idea for a seed-searching algorithm:
-% \begin{itemize}
-%     \item Suppose we have a \( 15 \times 15 \) EMCal grid and create a \( (15+1) \times (15+1) \) 2D array initialized with zeros.
-%     \item Assign energy values to the cells based on their \texttt{elmID}.
-%     \item Apply a minimum energy mask to identify potential energy seed candidates.
-%     \item Sort the energy seeds in ascending order.
-%     \item Add a padding region for each seed candidate. If any hit within the padding region has a higher energy than the candidate, discard the candidate. Loop through the list of energy seed candidates.
-% \end{itemize}
-% 
-% The found seed candidates can be used as a starting point for the $K$-means clustering algorithm.
-% 
-% \end{document}

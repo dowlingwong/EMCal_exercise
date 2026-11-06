@@ -7,8 +7,5 @@ __pycache__/
 # MacOS metadata
 .DS_Store
 
-# Figures (if they are generated, not source)
-figures/
-
-# (Optional) Keep empty dirs
-.gitkeep
+# Executed copies / scratch output (figures/ folders are tracked: they hold notebook images)
+*_executed.ipynb

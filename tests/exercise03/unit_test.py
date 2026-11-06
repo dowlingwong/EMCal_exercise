@@ -120,6 +120,24 @@ def test_inertia_definition():
     assert_floats_equal(km.inertia_, manual_inertia, tol=1e-8)
 
 
+def test_kmeanspp_init():
+    rng = np.random.default_rng(4)
+    X = np.vstack([rng.normal([0, 0], 0.2, size=(40, 2)),
+                   rng.normal([8, 8], 0.2, size=(40, 2)),
+                   rng.normal([16, 0], 0.2, size=(40, 2))])
+    km1 = KMeans(n_clusters=3, init="k-means++", random_state=5).fit(X)
+    km2 = KMeans(n_clusters=3, init="k-means++", random_state=5).fit(X)
+    assert_true(rows_equal_any_permutation(km1.cluster_centers_, km2.cluster_centers_),
+                "k-means++ with the same random_state must give the same result")
+    centres = sorted(map(tuple, np.round(km1.cluster_centers_)))
+    assert_true(np.allclose(centres, [(0, 0), (8, 8), (16, 0)], atol=1.0),
+                f"k-means++ should find the three well-separated clusters, got {centres}")
+    init = km1._kmeanspp_init(X, np.random.default_rng(0))
+    assert_equals((3, 2), init.shape)
+    assert_true(all(np.any(np.all(np.isclose(X, c), axis=1)) for c in init),
+                "k-means++ initial centroids must be data points")
+
+
 def run_all_tests():
     print("Running KMeans standalone tests...")
     test_basic_shapes_and_types()
@@ -130,6 +148,8 @@ def run_all_tests():
     print("  \u2713 test_predict_matches_training_assignment")
     test_inertia_definition()
     print("  \u2713 test_inertia_definition")
+    test_kmeanspp_init()
+    print("  \u2713 test_kmeanspp_init")
     print("All tests passed!")
 
 if __name__ == '__main__':
