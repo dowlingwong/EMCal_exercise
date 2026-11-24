@@ -171,7 +171,10 @@ def _sample_lateral_profile(n, rng, r_core=1.0, r_tail=5.0, p_core=0.86):
     return r * np.cos(phi), r * np.sin(phi)
 
 
-def _deposit(E, x0, y0, rng, spots_per_gev=40):
+SPOTS_PER_GEV = 40  # energy "quanta" of the toy simulation: one deposit spot per 25 MeV
+
+
+def _deposit(E, x0, y0, rng, spots_per_gev=SPOTS_PER_GEV):
     """Energy deposits (x, y, e) of one EM shower of energy E (GeV) at (x0, y0)."""
     n = int(max(100, spots_per_gev * E))
     dx, dy = _sample_lateral_profile(n, rng)

@@ -1,7 +1,7 @@
 # EMCal Exercises
 
 This repo bundles two teaching exercises:
-- **Exercise 03 (EMCal clustering)**: electromagnetic calorimetry fundamentals, PHENIX EMCal geometry, and clustering of calorimeter hits. You work with provided ROOT samples (`electron`, `dielectron`, `Aprime`) to visualize showers, study moments, and implement/compare K-means (plus a seeded variant) for cluster finding. Section 4 connects K-means, EM and Variational Autoencoders as latent-variable models (energy-weighted K-means, Gaussian-mixture EM with energy sharing and BIC, a K-means shower codebook, and a NumPy VAE for shower shapes), using a toy shower simulation with Monte-Carlo truth.
+- **Exercise 03 (EMCal clustering)**: electromagnetic calorimetry fundamentals, PHENIX EMCal geometry, and clustering of calorimeter hits. You work with provided ROOT samples (`electron`, `dielectron`, `Aprime`) to visualize showers, study moments, and implement/compare K-means (plus a seeded variant) for cluster finding. Section 4 connects K-means, EM and Variational Autoencoders as latent-variable models that maximise the same ELBO (energy-weighted K-means, Gaussian-mixture EM with energy sharing and BIC, a shower codebook with the KL divergence, and a NumPy VAE for shower shapes, compared in the rate-distortion plane), using a toy shower simulation with Monte-Carlo truth.
 - **Geant4 exercise**: intro to Geant4-based detector simulation. You drive the provided `geant4_simulation` Python package via the notebooks: select geometries/physics lists, initialize the kernel, shoot particles with chosen PDG codes/energies, and visualize the detector or runs.
 
 ## Repository layout
@@ -11,7 +11,8 @@ This repo bundles two teaching exercises:
 - `notebooks/geant4/` – Part 1/2 notebooks and solutions for the Geant4 exercise.
 - `src/exercise03/` – reusable helpers (`exercise3_utils.py`) for loading ROOT data.
 - `src/geant4_simulation/` – Geant4 wrapper package with geometries, actions, and visualization macros.
-- `assets/figures/exercise03/` – figures used by the EMCal handout.
+- `notebooks/exercise03/figures/` – images shown in the Exercise 03 notebooks.
+- `tools/make_student.py` – generates the student notebook from the solution notebook (the solution notebook is the single source; see the docstring for the cell tags).
 - `tests/exercise03/` – standalone NumPy-based test harnesses for KMeans (`unit_test.py`) and the Section 4 Gaussian mixture (`gmm_test.py`).
 - `docs/img/exercise03/` – figures used by the Section 4 pages of the EMCal handout.
 - `archive/` – legacy/reference material kept out of the main workflow.
