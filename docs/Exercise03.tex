@@ -41,7 +41,7 @@ Open the notebook and work through the different tasks that are given inside.
 The last section of the notebook revisits the clustering problem from the point of view of \emph{latent-variable models}, following the lecture
 ``Variational Autoencoder'' (K.~He, MIT 6.S978 \emph{Deep Generative Models}, 2024).
 You will see that the $k$-means algorithm of Section~3, the Expectation-Maximization (EM) algorithm and the Variational Autoencoder (VAE) are three ways of
-maximising one and the same objective, and you will use them for three calorimetry tasks:
+maximising one and the same objective, the evidence lower bound (ELBO), for different generative models and different families of $q$, and you will use them for three calorimetry tasks:
 sharing the energy of overlapping showers, choosing the number of clusters, and learning what a ``normal'' electromagnetic shower looks like.
 
 \subsection*{The generative picture}
@@ -56,7 +56,11 @@ For any distribution $q(z)$ the log-likelihood can be decomposed as
 \label{eq:elbo}
 \end{equation}
 so the \emph{evidence lower bound} (ELBO) is a lower bound on $\log p_\theta(x)$, which becomes tight when $q$ equals the posterior $p_\theta(z|x)$.
-The three methods differ only in how they represent $q$ and how they maximise the ELBO (\cref{tab:methods,fig:schematic}).
+The three methods differ in the generative model $p_\theta(x|z)$, in how they represent $q$ and in how they maximise the ELBO (\cref{tab:methods,fig:schematic}).
+
+One physical picture connects all four problems: the energy of a shower arrives in many small, independent \emph{quanta} (in the toy simulation one deposit per 25~MeV, in a real detector photo-electrons),
+and every model describes \emph{where the quanta land}. The log-likelihood is therefore always of the form $\sum_j n_j\log p_j$, with $n_j$ the number of quanta in tower $j$:
+the energy enters as a weight for the Gaussian mixture and as the target of a cross-entropy for the codebook and the VAE, and the total number of quanta $N_q$ matters whenever likelihoods are compared.
 
 \begin{table}[h]
 \centering
@@ -119,7 +123,8 @@ the VAE replaces the analytic posterior by an encoder network and the discrete l
 \subsection*{EM for an energy-weighted Gaussian mixture}
 
 Model the hit positions $x_i$ of an event as a mixture of $K$ Gaussians, $p_\theta(x)=\sum_k \pi_k\,\mathcal{N}(x\,|\,\mu_k,\Sigma_k)$,
-and give every hit a weight $w_i\propto E_i$ (normalised to $\sum_i w_i = N$). EM alternates
+and give every hit a weight $w_i\propto E_i$, the number of quanta in tower $i$, normalised to $\sum_i w_i = N_q$ (by default $N_q=N$, the number of hits).
+EM does not depend on this normalisation (the responsibilities do not depend on $w$ and the M-step is invariant under $w\to c\,w$); it matters only when models are compared. EM alternates
 \begin{align}
 \text{E-step:}\quad & r_{ik} = \frac{\pi_k\,\mathcal{N}(x_i|\mu_k,\Sigma_k)}{\sum_j \pi_j\,\mathcal{N}(x_i|\mu_j,\Sigma_j)}, \\
 \text{M-step:}\quad & N_k=\sum_i w_i r_{ik},\qquad \pi_k = \frac{N_k}{\sum_i w_i},\qquad
@@ -127,9 +132,16 @@ and give every hit a weight $w_i\propto E_i$ (normalised to $\sum_i w_i = N$). E
 & \Sigma_k=\frac{1}{N_k}\sum_i w_i r_{ik}\,(x_i-\mu_k)(x_i-\mu_k)^\mathsf{T}+\varepsilon\,\mathbb{I}.
 \end{align}
 The term $\varepsilon=(5.5\,\text{cm})^2/12$ appears because a hit is a \emph{tower}, not a point: averaging $\log\mathcal{N}$ over the tower area adds $-\tfrac{\varepsilon}{2}\,\mathrm{tr}\,\Sigma_k^{-1}$ to the log-likelihood.
-Both steps increase the ELBO, so EM converges monotonically. With $\Sigma_k=\sigma^2\mathbb{I}$ and $\sigma\to 0$ the responsibilities become one-hot and EM turns into (energy-weighted) $k$-means.
+(By Jensen's inequality $\exp\langle\log\mathcal{N}\rangle_\text{tower}\le\langle\mathcal{N}\rangle_\text{tower}$, so this tower-averaged ``likelihood'' is itself a lower bound on the likelihood of the binned data; EM is exact coordinate ascent on it.)
+Both steps increase the ELBO, so EM converges monotonically.
+The link to $k$-means can be seen in two ways, both with $\Sigma_k=\sigma^2\mathbb{I}$. Restricting $q$ to one-hot distributions and fixing $\pi_k=1/K$ removes the entropy term and gives
+$\mathrm{ELBO} = -J_w/(2\sigma^2)+\text{const}$ with $J_w=\sum_i w_i\lVert x_i-\mu_{k(i)}\rVert^2$: energy-weighted $k$-means is \emph{hard EM}, for any $\sigma$.
+With the exact (soft) E-step the responsibilities become one-hot by themselves for $\sigma\to 0$; the mixing weights then drop out, so it does not matter that the notebook still fits $\pi_k$ for fixed $\sigma$.
 The soft responsibilities share the energy of a tower between overlapping showers, $E_k=\sum_i r_{ik}E_i$ (\cref{fig:toy}),
-and the likelihood provides a principled way to choose $K$, the Bayesian Information Criterion $\mathrm{BIC}=-2\log p_{\hat\theta}(x)+n_\mathrm{par}\ln N$.
+and the likelihood provides a principled way to choose $K$, the Bayesian Information Criterion $\mathrm{BIC}=-2\log p_{\hat\theta}(x)+n_\mathrm{par}\ln N_q$.
+The log-likelihood grows like $N_q$ and the penalty like $\ln N_q$, so both terms must use the same $N_q$, and the answer depends on it.
+BIC assumes $N_q$ independent observations of a model that contains the truth; neither holds here (a shower profile has power-law tails), so BIC is a heuristic.
+The notebook compares $N_q=N$, the Kish effective sample size $(\sum_i E_i)^2/\sum_i E_i^2$ and the physical number of quanta.
 
 \begin{figure}[h]
 \centering
@@ -143,9 +155,11 @@ Towers in between contain energy from both showers, which a hard assignment cann
 
 For Problems~4.3 and 4.4 a data point is a whole shower: the $7\times7$ tower energies around the seed, normalised to a sum of one (\cref{fig:windows}).
 The VAE has a Gaussian encoder $q_\phi(z|x)=\mathcal{N}(\mu_\phi(x),\mathrm{diag}\,\sigma^2_\phi(x))$, a prior $p(z)=\mathcal{N}(0,\mathbb{I})$ and a decoder that predicts the energy fraction $p_j(z)$ of every tower.
-Assuming the energy arrives in $N_q$ independent ``quanta'' gives a multinomial likelihood, and the loss per shower is
+The $N_q$ quanta give a multinomial likelihood. With Stirling's formula the multinomial coefficient becomes $N_q H(x)$, $H(x)=-\sum_j x_j\log x_j$, and
+$\log p_\theta(x|z)\approx -N_q\,D_\mathrm{KL}\big(x\,\|\,p(z)\big)$. The coefficient does not depend on the network, so training may use the cross-entropy, but it depends on $x$ and must be kept whenever showers are compared.
+The loss per shower ($-$ELBO = distortion + rate) is
 \begin{equation}
-\mathcal{L}(x)= -N_q\sum_j x_j\log p_j(z) \;+\; \tfrac12\sum_l\big(\mu_l^2+\sigma_l^2-\log\sigma_l^2-1\big),
+\mathcal{L}(x)= N_q\,D_\mathrm{KL}\big(x\,\|\,p(z)\big) \;+\; \tfrac12\sum_l\big(\mu_l^2+\sigma_l^2-\log\sigma_l^2-1\big),
 \qquad z=\mu+\sigma\odot\varepsilon,\;\; \varepsilon\sim\mathcal{N}(0,\mathbb{I}).
 \end{equation}
 The \emph{reparametrisation} $z=\mu+\sigma\odot\varepsilon$ moves the randomness into an input, so that gradients can flow through the sampling step.
@@ -161,16 +175,18 @@ The VAE is written in plain NumPy, so that every term of the loss and of its gra
 \subsection*{Your tasks in Section 4}
 
 The PHENIX samples contain no information about which particle produced which hit, and too few events to train a network.
-The notebook therefore provides a fast toy simulation with full Monte-Carlo truth, tuned to the shower containment of the PHENIX electrons:
+The notebook therefore provides a fast toy simulation with full Monte-Carlo truth, roughly tuned to the shower containment of the PHENIX electrons (the toy showers are somewhat wider):
 \texttt{ex3.generate\_shower\_event} (events with several showers) and \texttt{ex3.make\_shower\_images} (shower windows).
 Only four cells require your code (marked \texttt{\# --> TODO}); the analysis and plotting cells are provided, so concentrate on interpreting the plots.
 \begin{description}
 \item[Problem 4.1] Energy-weighted $k$-means, seeded with your \texttt{seed\_search}: compare the position resolution with the unweighted version and with the seed-tower centre.
 \item[Problem 4.2] Implement the E-step, M-step and ELBO of an energy-weighted Gaussian mixture (unit test provided).
 Visualise EM as coordinate ascent on the ELBO, show that $k$-means is its $\sigma\to0$ limit, study the energy sharing as a function of the shower separation, choose $K$ with the BIC, and apply the method to real $A'\to e^+e^-$ events.
-\item[Problem 4.3] Use your $k$-means class on 49-dimensional shower vectors: interpret the codebook of shower templates, use it as an autoencoder and study how much information a code of $\log_2 K$ bits carries.
+\item[Problem 4.3] Use your $k$-means class on 49-dimensional shower vectors and refine the codebook with the KL divergence, the distance that matches the multinomial likelihood (the update step, the arithmetic mean, does not change).
+Interpret the codebook of shower templates, use it as an autoencoder and study distortion and position information against the rate $\ln K$.
 \item[Problem 4.4] Implement the reparametrisation, the KL term and the reconstruction loss (with gradients) of a VAE, train it (about a minute on a CPU) and explore the latent space,
-the decoded shower manifold, the generation of new showers and the use of the ELBO to detect merged clusters.
+the decoded shower manifold, the generation of new showers, the position of the VAE in the rate--distortion plane of the codebooks,
+and the use of the ELBO to detect merged clusters (and what goes wrong if the multinomial coefficient is dropped).
 \end{description}
 
 \subsection*{Further reading}
@@ -180,6 +196,9 @@ the decoded shower manifold, the generation of new showers and the use of the EL
 \item T.~Hastie, R.~Tibshirani, J.~Friedman, \emph{The Elements of Statistical Learning}, Springer (Sec.~8.5: the EM algorithm).
 \item A.~van den Oord, O.~Vinyals, K.~Kavukcuoglu, \emph{Neural Discrete Representation Learning} (VQ-VAE), NeurIPS 2017, \href{https://arxiv.org/abs/1711.00937}{arXiv:1711.00937}.
 \item G.~Grindhammer, S.~Peters, \emph{The parameterized simulation of electromagnetic showers in homogeneous and sampling calorimeters}, \href{https://arxiv.org/abs/hep-ex/0001020}{arXiv:hep-ex/0001020}.
+\item A.~Banerjee, S.~Merugu, I.~S.~Dhillon, J.~Ghosh, \emph{Clustering with Bregman Divergences}, JMLR 6 (2005) 1705.
+\item S.~Bessa et al., \emph{e-means: outperforming k-means (in one-tenth the epochs)}, preprint (2026), \href{https://arxiv.org/abs/2611.09501}{arXiv:2611.09501} (bonus question~2).
+\item A.~A.~Alemi et al., \emph{Fixing a Broken ELBO}, ICML 2018, \href{https://arxiv.org/abs/1711.00464}{arXiv:1711.00464}.
 \item E.~Nalisnick et al., \emph{Do Deep Generative Models Know What They Don't Know?}, ICLR 2019, \href{https://arxiv.org/abs/1810.09136}{arXiv:1810.09136}.
 \end{itemize}
 

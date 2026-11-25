@@ -251,3 +251,46 @@ The solution runs top to bottom headless with **0 errors** (no keyboard input, a
 | dates | not done | The three `[TBD]` placeholders remain (`grep -n "TODO(dates)" docs/*.tex`). |
 
 **Rebuilt PDF:** `docs/Exercise03.pdf` was built again with the stand-in header style (see §0); recompile with the real `common/` before release.
+
+---
+
+## 8. Revision log (24 Nov 2026): mathematical consistency of Section 4
+
+Goal: K-means, EM and the VAE are presented as maximising the same ELBO; the models behind them were not consistent with each other. All changes are in the solution notebook (student version regenerated with `tools/make_student.py`), `docs/Exercise03.tex/.pdf` and one constant in `exercise3_utils.py`. The solution runs headless with 0 errors; both unit-test harnesses pass.
+
+| id | issue | what was done |
+|---|---|---|
+| C1 | **4.4: the "constant" of the multinomial likelihood depends on x.** The −ELBO used as a shower-shape test was $N_q\,\mathrm{CE}(x,p) = N_q H(x) + N_q D_\mathrm{KL}(x\|p)$; the entropy term (≈ 229 nats for a typical shower, 0 for a MIP) dominated the score. MIPs therefore looked *more* typical than real showers, and part of the merged-shower AUC was just "merged showers are wider". | Decoder likelihood written with the multinomial coefficient (Stirling: $\approx N_q H(x)$), so $\log p(x|z) \approx -N_q D_\mathrm{KL}(x\|p)$. Training still uses the cross-entropy (same gradient; student TODO unchanged); `loss_and_grads` and `negative_elbo` report $N_q D_\mathrm{KL}$ (new helper `entropy`). The exercise now compares both scores: MIP vs single AUC 0.008 (CE) → 1.000 (−ELBO); merged vs single 0.975 (CE), 0.950 (H(x) alone), 0.987 (−ELBO), 0.909 (seed fraction). Answer rewritten. |
+| C2 | **4.2: BIC depended on an arbitrary normalisation.** Weights were normalised to $\sum w = N$ (likelihood ∝ N) but the penalty used `ln(len(X))` independently; with energy weights the effective sample size is far below N. | `fit(..., n_quanta=None)` sets $\sum w = N_q$ (default N, unchanged behaviour); `bic(X, n_quanta=None)` uses the same $N_q$ in both terms. New text explains BIC as a heuristic on a pseudo-likelihood. The exercise compares $N_q = N$ (93 % correct), Kish $n_\mathrm{eff}$ (98 %) and the physical number of quanta `ex3.SPOTS_PER_GEV`·E (1 %: misspecified Gaussian profile + thousands of quanta → largest K). Left panel shows one 2-shower event under the three choices. |
+| C3 | **4.3 vs 4.4: different likelihoods.** The codebook used the Euclidean distance (Gaussian on energy fractions), the VAE a multinomial; their reconstruction errors were not comparable. | New provided class `KLCodebook` (hard EM for a mixture of multinomials): starts from the student's Euclidean `KMeans`, only the assignment step changes (argmin KL); the mean update is unchanged (Bregman divergences, Banerjee et al. 2005). Rate = ln K nats, distortion = $N_q\langle D_\mathrm{KL}\rangle$. KL refinement improves resolution at every K (16 codewords: 0.54 cm vs 0.62 cm for the energy-weighted centroid). New exercise + answer after the VAE training: the VAE on the codebooks' rate–distortion plane (rate 3.9 + distortion 5.8 = 9.7 nats, below every codebook). Codebook samples in the generation exercise are now drawn with the same multinomial. |
+| C4 | Text said "fix $\pi_k = 1/K$" for the K-means limit; `covariance="fixed"` fits $\pi_k$. | Text now gives both views: hard EM (q one-hot, equal π) equals weighted K-means for any σ; soft EM becomes hard for σ → 0, where fitted π drop out. States that the class fits π; σ → 0 answer mentions the effect of π at large σ. |
+| C5 | Tower-averaged log-density is not normalised. | Jensen remark added (notebook and sheet): the reported "log-likelihood" is a lower bound on the binned likelihood; EM is unaffected. |
+| C6 | "Same objective" framing. | Intro states: same ELBO, different $p_\theta(x|z)$ and family of q; new paragraph on the common "energy quanta" picture ($\sum_j n_j \log p_j$) that links 4.1–4.4. Summary table has a likelihood column. `N_Q = 200` is defined once in 4.3. |
+
+**Sheet:** `docs/Exercise03.tex` Section 4 updated accordingly (quanta picture, hard-EM statement, BIC with $N_q$, VAE loss with KL, tasks 4.3/4.4, two references). `docs/Exercise03.pdf`: pages 2–6 rebuilt with a stand-in style matched to the previous layout; page 1 (KIT header) kept from the previous PDF since its content is unchanged. Recompile with the real `common/` before release.
+
+**Runtime:** the BIC scan now fits once per K and evaluates three $N_q$ (no extra fits); the KL refinement adds a few seconds.
+
+**Addendum (24 Nov 2026, later): e-means as a bonus question.** The summary table of Section 4 has one more row (mini-batch EMA $K$-means, "e-means", Bessa et al., arXiv:2611.09501) and a sentence on the optimisation column; the bonus box now has two questions (1: VQ-VAE, unchanged; 2: the EMA update, with four sub-questions and a solution answer). The preprint was added to the reading list of the sheet. Markdown only: no code cell changed, the notebook was not re-executed.
+A demonstration cell was considered and **not** added. Feasibility test on the shower codebook (20 000 × 49, reference implementation `faiss.contrib.e_means` and a 30-line NumPy version, training MSE relative to 25 Lloyd iterations with k-means++ initialisation, 20 seeds): K = 64: −1.6 % after 25 passes (quality batch law; default law +0.3 %); K = 16: no difference within the seed spread (3.9 %); K = 256: +6 %. Against randomly initialised Lloyd it wins at every K; cumulative (Sculley-type) mini-batch updates stall 12–28 % higher. Conclusion: "e-means beats k-means" is not robust at this scale; if a demo is wanted later, compare the three update rules (replace / accumulate / forget) from the same random initialisation.
+
+---
+
+## 9. Full re-review before the push (24 Nov 2026)
+
+Method: the whole solution notebook (text, code, student templates, text outputs and all 47 figures) was read again; numbers quoted in the answers were recomputed; the sheet was rebuilt and its pages inspected; the solution was executed headless once more (0 errors, all text outputs identical to the previous run); the student notebook was regenerated and checked (162 cells, all code cells parse, no answer leaks, all 8 images resolve); both unit-test harnesses pass.
+
+| id | sev. | finding | fix |
+|---|---|---|---|
+| R1 | Med | Toy simulation vs PHENIX samples: the notebook and the sheet said the toy is "tuned as for the PHENIX electrons" (45–85 % in the seed tower, 97 % in 3×3). Measured on the isolated clusters of the Section 2 samples: about 55–95 % and ≥ 99 %, width about 1.5 cm vs 2.7 cm for the toy. | Wording corrected in the notebook (toy description, limitations) and in the sheet. The A′ answer notes that σ = 2.7 cm comes from the toy and that the cluster energies do not change with σ = 1.5 cm (checked). **Open:** retune `_sample_lateral_profile` (smaller tail) if a closer match is wanted; this changes all Section 4 numbers and the two sheet figures. |
+| R2 | Med | Answer 3.2 (seeding) quoted "30–90 %" of the energy in the seed tower. | "about 55–95 %" for an isolated shower (measured). |
+| R3 | Med | Complexity answer (3.2): the scan was written as O(K_max · n · k · I · d) with a free k, started at k = 2 for the elbow, and recomputed the distance matrix per k. | Rewritten: elbow O(K_max² n I d); silhouette O(K_max² n I d + K_max n² d); distance matrix can be stored once. |
+| R4 | Low | Student `KMeans` template: step numbers in the docstrings (2–6) did not match the guide above (1–4); `_initialize_centroids` described its return value as "generated randomly within the range" instead of K rows of X. | Docstrings corrected (student template only). |
+| R5 | Low | Section 1 text: broken sentence in the first paragraph; "a 10 GeV muon loses about 10 MeV/cm in iron" (below the minimum-ionising value of 11.4 MeV/cm); wording of the bremsstrahlung scaling. Section 2 answer: "photon displaced by the magnetic field". | Reworded (roughly 15 MeV per cm). |
+| R6 | Low | 4.3 text had "+ const(x)" in the multinomial log-likelihood, inconsistent with 4.4. | Removed. |
+| R7 | Low | Figures: BIC title overflowed its panel; the example plot of `generate_2d_points` showed an energy colour bar for unit weights. | Title shortened; plot uses `labels=`. |
+| R8 | Low | README: listed a non-existent `assets/figures/exercise03/`; Section 4 description outdated; `tools/make_student.py` not mentioned. | Updated. |
+
+Checked and found correct (no change): PDG numbers of Section 1 (Pb, PbWO₄, muon critical energies, t₉₅ formula), the coordinate convention and its assertion, the moments printed for the electron and dielectron events, silhouette 0.82 for dielectron event 6, the seed energies quoted in 3.2, the A′ cluster energies, and every number quoted in the Section 4 answers.
+
+**Still open (decisions, not errors):** the three `[TBD]` dates in the sheet; the PDF header (rebuild with the real `common/`); splitting Section 4 into its own notebook (S4-4); points per answer box (S4-6); the legend label "centroids" on the seed plots (the plotting function is reused); R1 retuning.
